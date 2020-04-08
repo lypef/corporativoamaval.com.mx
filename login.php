@@ -153,8 +153,6 @@
                                     <ul>
                                         <li><a href="/">Home</a></li>
                                         <li><a href="/login.php">Login</a></li>
-                                        <li><a href="#" title="Agregar cliente" data-toggle="modal" data-target="#addsoportetecnico" onclick="hideMenuVarMobile()">
-                                            Soporte Tecnico</a></li>
                                     </ul>
                                 </nav>
                             </div>
