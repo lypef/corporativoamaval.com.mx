@@ -272,7 +272,7 @@ if (ExistFact($_POST['folio']) == false)
         // ********* Se envia factura por correo
         
         $to = $cfdi_cliente_correo;
-        $to .= ',contacto@cyberchoapas.com';
+        $to .= ','.static_empresa_email();
 	    $to = str_replace("", ",,", $to);
 	    
         $subject = "FACTURA CFDI: " . $cfdi_serie . $folio;

@@ -1,5 +1,5 @@
 ﻿<?php
-	
+
 	function db_conectar ()
 	{
 		$host = "localhost";
@@ -10,16 +10,55 @@
 		mysqli_query($coneccion, "SET NAMES 'utf8'");
 		return $coneccion;
 	}
+
+	function GetNumberDecimales ()
+	{
+		return 2;
+	}
+	
+	function static_empresa_nombre ()
+	{
+		return "Corporativo Amaval";
+	}
+
+	function static_empresa_email()
+	{
+		return "contacto@cyberchoapas.com";
+	}
 	
 	function ColorBarrReport ()
 	{
-		return "#5a94dd";
+		return "#45916b ";
+	}
+
+	function DesglosarReportIva ()
+	{
+		return false;
+	}
+
+	function Ticket ()
+	{
+		return true;
 	}
 
 	function ReportCotTranfers ()
 	{
 		return '';
 	}
+
+	function CheckCredit ($id)
+	{
+		$data = mysqli_query(db_conectar(),"SELECT adeudo, abono FROM credits WHERE id = $id ");
+		if ($row = mysqli_fetch_array($data))
+	    {
+			if ($row[1] >= $row[0])
+			{
+				mysqli_query(db_conectar(),"UPDATE `credits` SET `pay` = '1' WHERE `credits`.`id` = $id ;");
+			}
+	    }
+		return $body;
+	}
+
 
 	function GetOxxoPayFolio ($folio)
 	{
@@ -48,7 +87,7 @@
 				$body = $row[0];
 			}else
 			{
-				$body = "zhero49@hotmail.com";
+				$body = "'.$static_empresa_email().'";
 			}
 	    }
 		return $body;
@@ -123,7 +162,7 @@
 					"line_items" => array(
 					array(
 						"name" => "Pago correspondiente al folio: " . $folio,
-						"unit_price" => number_format($total,2,"",""),
+						"unit_price" => number_format($total,GetNumberDecimales(),"",""),
 						"quantity" => 1
 					)),
 					"currency" => "MXN",
@@ -330,6 +369,20 @@
 		return $body;
 	}
 
+	function GetAlmacen ($sucursal)
+	{
+		$data = mysqli_query(db_conectar(),"SELECT a.nombre, sa.id FROM sucursal_almacen sa, almacen a, sucursales s WHERE sa.sucursal = s.id and sa.almacen = a.id and sa.sucursal = '$sucursal' ;");
+		$body = "<ul>";
+		while($row = mysqli_fetch_array($data))
+	    {
+			$body = $body.'<li><b> * </b>'.$row[0].'  | <a href="/func/suc_alm_delete.php?id='.$row[1].'">Eliminar</a></li>';
+		}
+
+		$body = $body . "</ul>";
+
+		return $body;
+	}
+
 	function validateFolioVenta ($folio)
 	{
 		$data = mysqli_query(db_conectar(),"SELECT pedido FROM folio_venta WHERE folio = '$folio'");
@@ -422,6 +475,16 @@
 	function Return_NombreAlmacen ($id)
 	{
 		$data = mysqli_query(db_conectar(),"SELECT nombre FROM almacen where id = $id ");
+		while($row = mysqli_fetch_array($data))
+	    {
+			$body = $row[0];
+	    }
+		return $body;
+	}
+
+	function Return_NombreClient ($id)
+	{
+		$data = mysqli_query(db_conectar(),"SELECT nombre FROM clients where id = $id ");
 		while($row = mysqli_fetch_array($data))
 	    {
 			$body = $row[0];
@@ -539,6 +602,23 @@
 		return $body;
 	}
 
+	function Select_clients ($client)
+	{
+		$data = mysqli_query(db_conectar(),"SELECT id, nombre FROM `clients` order by nombre asc");
+		$body = "<option value='0'>TODOS LOS CLIENTES</option>";
+		while($row = mysqli_fetch_array($data))
+	    {
+			if ($client == $row[0])
+			{
+				$body = $body.'<option value='.$row[0].' selected>'.$row[1].'</option>';
+			}else
+			{
+				$body = $body.'<option value='.$row[0].'>'.$row[1].'</option>';
+			}
+	    }
+		return $body;
+	}
+
 	function Select_sucursales ()
 	{
 		$data = mysqli_query(db_conectar(),"SELECT id, nombre FROM sucursales ORDER by nombre asc");
@@ -546,6 +626,24 @@
 		while($row = mysqli_fetch_array($data))
 	    {
 	        $body = $body.'<option value='.$row[0].'>'.$row[1].'</option>';
+	    }
+		return $body;
+	}
+
+	function Select_sucursales_selected ($id)
+	{
+		$data = mysqli_query(db_conectar(),"SELECT id, nombre FROM sucursales ORDER by nombre asc");
+		$body = "<option value='0'>LISTA DE SUCURSALES</option>";
+		while($row = mysqli_fetch_array($data))
+	    {
+			if ($id == $row[0])
+			{
+				$body = $body.'<option value='.$row[0].' selected>'.$row[1].'</option>';
+			}else
+			{
+				$body = $body.'<option value='.$row[0].'>'.$row[1].'</option>';
+			}
+
 	    }
 		return $body;
 	}
@@ -572,11 +670,23 @@
 		return $body;
 	}
 
+	function GetFilterAlmacen ($sucursal)
+	{
+		$data = mysqli_query(db_conectar(),"SELECT almacen FROM sucursal_almacen where sucursal = '$sucursal';");
+		$body = "";
+		while($row = mysqli_fetch_array($data))
+	    {
+	        $body .= ' almacen = '.$row[0].' or';
+	    }
+		return $body;
+	}
+
 	function _getProducts ($pagina)
 	{
 		$login = false;
 		$icons_edit = "";
 
+		
 		if (isset($_SESSION['users_id'])){ $login = true;}
 		
 		$TAMANO_PAGINA = 16;
@@ -589,9 +699,19 @@
 			$inicio = ($pagina - 1) * $TAMANO_PAGINA;
 		}
 		
+		if (isset($_SESSION['sucursal']))
+		{
+			$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+			$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where $c order by id asc LIMIT $inicio, $TAMANO_PAGINA");
+			$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos where $c ");
+		}else 
+		{
+			$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos order by id asc LIMIT $inicio, $TAMANO_PAGINA");
+			$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos");
+		}
 		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos order by id asc LIMIT $inicio, $TAMANO_PAGINA");
-		$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos");
+
+		
 
 		$pagination = '<div class="row">
 						<div class="col-md-12">
@@ -707,7 +827,8 @@
 		$icons_edit = "";
 
 		if (isset($_SESSION['users_id'])){ $login = true;}
-		
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+
 		$TAMANO_PAGINA = 16;
 
 		if (!$pagina) {
@@ -718,9 +839,8 @@
 			$inicio = ($pagina - 1) * $TAMANO_PAGINA;
 		}
 		
-		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos order by id asc LIMIT $inicio, $TAMANO_PAGINA");
-		$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos");
+		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where $c order by id asc LIMIT $inicio, $TAMANO_PAGINA");
+		$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos where $c ");
 
 		$pagination = '<div class="row">
 						<div class="col-md-12">
@@ -812,7 +932,7 @@
 					</div>
 				</div>
 				<div class="product-content text-center text-uppercase">
-					<a href="product-details.html" title="'.$row[0].'">'.substr($row[0], 0, 25).'.</a>
+					<a href="#" title="Ver detalles" data-toggle="modal" data-target="#add_car'.$row[9].'">'.substr($row[0], 0, 25).'.</a>
 					<div class="rating-icon">
 						'.$_stock.'
 					</div>
@@ -838,7 +958,8 @@
 		$icons_edit = "";
 
 		if (isset($_SESSION['users_id'])){ $login = true;}
-		
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+
 		$TAMANO_PAGINA = 16;
 
 		if (!$pagina) {
@@ -850,8 +971,8 @@
 		}
 		
 		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos order by id asc LIMIT $inicio, $TAMANO_PAGINA");
-		$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos");
+		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where $c order by id asc LIMIT $inicio, $TAMANO_PAGINA");
+		$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos where $c ");
 
 		$pagination = '<div class="row">
 						<div class="col-md-12">
@@ -944,7 +1065,7 @@
 					</div>
 				</div>
 				<div class="product-content text-center text-uppercase">
-					<a href="product-details.html" title="'.$row[0].'">'.substr($row[0], 0, 25).'.</a>
+					<a href="#" title="Ver detalles" data-toggle="modal" data-target="#add_car'.$row[9].'">'.substr($row[0], 0, 25).'.</a>
 					<div class="rating-icon">
 						'.$_stock.'
 					</div>
@@ -970,7 +1091,8 @@
 		$icons_edit = "";
 
 		if (isset($_SESSION['users_id'])){ $login = true;}
-		
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+
 		$TAMANO_PAGINA = 16;
 
 		if (!$pagina) {
@@ -980,10 +1102,9 @@
 		else {
 			$inicio = ($pagina - 1) * $TAMANO_PAGINA;
 		}
-		
-		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos order by id asc LIMIT $inicio, $TAMANO_PAGINA");
-		$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos");
+
+		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where $c order by id asc LIMIT $inicio, $TAMANO_PAGINA");
+		$datatmp = mysqli_query(db_conectar(),"SELECT id FROM productos where $c ");
 
 		$pagination = '<div class="row">
 						<div class="col-md-12">
@@ -1076,7 +1197,7 @@
 					</div>
 				</div>
 				<div class="product-content text-center text-uppercase">
-					<a href="product-details.html" title="'.$row[0].'">'.substr($row[0], 0, 25).'.</a>
+					<a href="#" title="Ver detalles" data-toggle="modal" data-target="#add_car'.$row[9].'">'.substr($row[0], 0, 25).'.</a>
 					<div class="rating-icon">
 						'.$_stock.'
 					</div>
@@ -1094,8 +1215,9 @@
 
 	function _getProducts_saleSearch ($txt, $folio)
 	{
-		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' or nombre like '%$txt%' or descripcion like '%$txt%' or marca like '%$txt%'or proveedor like '%$txt%' ORDER by id desc");
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+
+		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' and $c or nombre like '%$txt%' and $c or descripcion like '%$txt%' and $c or marca like '%$txt%' and $c or proveedor like '%$txt%'  and $c ORDER by id desc");
 		
 		$body = '<div class="row">
 		<div class="col-md-12">
@@ -1156,7 +1278,7 @@
 					</div>
 				</div>
 				<div class="product-content text-center text-uppercase">
-					<a href="product-details.html" title="'.$row[0].'">'.substr($row[0], 0, 25).'.</a>
+					<a href="#" title="Ver detalles" data-toggle="modal" data-target="#add_car'.$row[9].'">'.substr($row[0], 0, 25).'.</a>
 					<div class="rating-icon">
 						'.$_stock.'
 					</div>
@@ -1178,8 +1300,9 @@
 
 	function _getProducts_CotSearch ($txt, $folio)
 	{
-		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' or nombre like '%$txt%' or descripcion like '%$txt%' or marca like '%$txt%'or proveedor like '%$txt%' ORDER by id desc");
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+
+		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' and $c or nombre like '%$txt%' and $c or descripcion like '%$txt%' and $c or marca like '%$txt%' and $c or proveedor like '%$txt%' and $c ORDER by id desc");
 		
 		$body = '<div class="row">
 		<div class="col-md-12">
@@ -1240,7 +1363,7 @@
 					</div>
 				</div>
 				<div class="product-content text-center text-uppercase">
-					<a href="product-details.html" title="'.$row[0].'">'.substr($row[0], 0, 25).'.</a>
+					<a href="#" title="Ver detalles" data-toggle="modal" data-target="#add_car'.$row[9].'">'.substr($row[0], 0, 25).'.</a>
 					<div class="rating-icon">
 						'.$_stock.'
 					</div>
@@ -1262,8 +1385,9 @@
 
 	function _getProducts_saleSearch_order ($txt, $folio)
 	{
-		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' or  nombre like '%$txt%' or descripcion like '%$txt%' or marca like '%$txt%'or proveedor like '%$txt%' ORDER by id desc");
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+
+		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' and $c or  nombre like '%$txt%' and $c or descripcion like '%$txt%' and $c or marca like '%$txt%' and $c or proveedor like '%$txt%' and $c ORDER by id desc");
 		
 		$body = '<div class="row">
 		<div class="col-md-12">
@@ -1324,7 +1448,7 @@
 					</div>
 				</div>
 				<div class="product-content text-center text-uppercase">
-					<a href="product-details.html" title="'.$row[0].'">'.substr($row[0], 0, 25).'.</a>
+					<a href="#" title="Ver detalles" data-toggle="modal" data-target="#add_car'.$row[9].'">'.substr($row[0], 0, 25).'.</a>
 					<div class="rating-icon">
 						'.$_stock.'
 					</div>
@@ -1488,7 +1612,7 @@
 					</div>
 				</div>
 				<div class="product-content text-center text-uppercase">
-					<a href="product-details.html" title="'.$row[0].'">'.substr($row[0], 0, 25).'.</a>
+					<a href="#" title="Ver detalles" data-toggle="modal" data-target="#viewM'.$row[9].'">'.substr($row[0], 0, 25).'.</a>
 					<div class="rating-icon">
 						'.$_stock.'
 					</div>
@@ -1515,9 +1639,10 @@
 		$icons_edit = "";
 
 		if (isset($_SESSION['users_id'])){ $login = true;}
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
 		
 		
-		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' or nombre like '%$txt%' or descripcion like '%$txt%' or marca like '%$txt%'or proveedor like '%$txt%' ORDER by id desc");
+		$data = mysqli_query(db_conectar(),"SELECT nombre, stock, oferta, precio_normal, precio_oferta, foto0, foto1, foto2, foto3, id, `no. De parte` FROM productos where `no. De parte` like '%$txt%' and $c or nombre like '%$txt%'  and $c or descripcion like '%$txt%'  and $c or marca like '%$txt%' and $c or proveedor like '%$txt%'  and $c ORDER by id desc");
 				
 		$body = '<div class="row">
 					<div class="col-md-12">
@@ -2189,7 +2314,8 @@
 		}
 		
 		
-		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id order by p.id asc LIMIT $inicio, $TAMANO_PAGINA");
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id and $c order by p.id asc LIMIT $inicio, $TAMANO_PAGINA");
 		$con_hijos  = db_conectar();
 
 		$body = "";
@@ -2223,7 +2349,7 @@
 							<input type="hidden" id="hijo" name="hijo" value="0">
 							
 							<div class="col-md-6">
-								<input type="number" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
+								<input type="number" step="1" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
 							</div>
 
 							<div class="col-md-6">
@@ -2256,7 +2382,7 @@
 							<input type="hidden" id="hijo" name="hijo" value="'.$item[0].'">
 							
 							<div class="col-md-6">
-							<input type="number" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
+							<input type="number" step="1" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
 							</div>
 
 							<div class="col-md-6">
@@ -2422,8 +2548,9 @@
 			$inicio = ($pagina - 1) * $TAMANO_PAGINA;
 		}
 		
-		
-		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id  order by p.id asc LIMIT $inicio, $TAMANO_PAGINA");
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+
+		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id and $c order by p.id asc LIMIT $inicio, $TAMANO_PAGINA");
 		
 		$body = "";
 		while($row = mysqli_fetch_array($data))
@@ -2547,7 +2674,7 @@
 							<input type="hidden" id="folio" name="folio" value="'.$folio.'">
 							
 							<div class="col-md-4">
-								<input type="number" id="unidades" name="unidades" placeholder="0" value ="1" min="1" " style="text-align: center;"></p>		
+								<input type="number" step="1" id="unidades" name="unidades" placeholder="0" value ="1" min="1" " style="text-align: center;"></p>		
 							</div>
 
 							<div class="col-md-8">
@@ -2571,7 +2698,8 @@
 
 	function _getProductsModal_sale_search ($txt, $folio)
 	{
-		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id and p.`no. De parte` like '%$txt%' or p.nombre like '%$txt%' or p.descripcion like '%$txt%' or p.marca like '%$txt%'or p.proveedor like '%$txt%' order by p.id asc");
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id and p.`no. De parte` like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.nombre like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.descripcion like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.marca like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.proveedor like '%$txt%' and $c order by p.id asc");
 		
 		$select = "";
 
@@ -2609,7 +2737,7 @@
 							<input type="hidden" id="hijo" name="hijo" value="0">
 							
 							<div class="col-md-6">
-								<input type="number" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
+								<input type="number" step="1" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
 							</div>
 
 							<div class="col-md-6">
@@ -2642,7 +2770,7 @@
 							<input type="hidden" id="hijo" name="hijo" value="'.$item[0].'">
 							
 							<div class="col-md-6">
-							<input type="number" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
+							<input type="number" step="1" id="unidades" name="unidades" placeholder="0" value ="1" min="1" /></p>		
 							</div>
 
 							<div class="col-md-6">
@@ -2799,7 +2927,8 @@
 
 	function _getProductsModal_sale_search_order ($txt, $folio)
 	{
-		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id and p.`no. De parte` like '%$txt%' or p.nombre like '%$txt%' or p.descripcion like '%$txt%' or p.marca like '%$txt%'or p.proveedor like '%$txt%' order by p.id asc");
+		$c = substr(GetFilterAlmacen($_SESSION['sucursal']), 0, -2);
+		$data = mysqli_query(db_conectar(),"SELECT p.nombre, p.stock, p.oferta, p.precio_normal, p.precio_oferta, p.foto0, p.foto1, p.foto2, p.foto3, p.id, p.descripcion, p.`tiempo de entrega`, p.`no. De parte`, a.nombre, d.nombre, p.marca, p.loc_almacen FROM productos p, almacen a, departamentos d where p.almacen = a.id and p.departamento = d.id and p.`no. De parte` like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.nombre like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.descripcion like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.marca like '%$txt%' and $c or p.almacen = a.id and p.departamento = d.id and p.proveedor like '%$txt%' and $c order by p.id asc");
 		
 		$select = "";
 
@@ -2930,7 +3059,7 @@
 							<input type="hidden" id="folio" name="folio" value="'.$folio.'">
 							
 							<div class="col-md-4">
-								<input type="number" id="unidades" name="unidades" placeholder="0" value ="1" min="1" " style="text-align: center;"></p>		
+								<input type="number" step="1"  id="unidades" name="unidades" placeholder="0" value ="1" min="1" " style="text-align: center;"></p>		
 							</div>
 
 							<div class="col-md-8">
@@ -3868,7 +3997,7 @@
 		$permiso_gest_products = $_SESSION['product_gest'];
 		
 		$data = mysqli_query(db_conectar(),"SELECT v.unidades, _p.nombre, v.precio, v.id, _p.descripcion, _p.foto0, _p.id, _p.`no. De parte`, _p.marca, _p.stock FROM product_venta v, productos _p WHERE v.product = _p.id and v.folio_venta = '$folio' ");
-		$data_ = mysqli_query(db_conectar(),"SELECT v.nombre, c.nombre, f.descuento, f.fecha, f.iva FROM folio_venta f, users v, clients c WHERE f.vendedor = v.id and f.client = c.id and f.folio = '$folio' ");
+		$data_ = mysqli_query(db_conectar(),"SELECT v.nombre, c.nombre, f.descuento, f.fecha, f.iva  FROM folio_venta f, users v, clients c WHERE f.vendedor = v.id and f.client = c.id and f.folio = '$folio' ");
 		$genericos = mysqli_query(db_conectar(),"SELECT unidades, p_generico, precio, id FROM product_venta v WHERE p_generico != '' and folio_venta = '$folio'");
 
 		$total = 0;
@@ -3877,7 +4006,6 @@
 		$vendedor = "";
 		$cliente = "";
 		$descuento = 0;
-		$fecha = "";
 
 		$body = '<!-- Start Wishlist Area -->
 		<div class="wishlist-area" style="background-color: #f5f5f5;">
@@ -3945,7 +4073,7 @@
 				<div class="col-md-12">
 					<div class="col-md-8">
 					<input type="hidden" id="url" name="url" value="'.$_SERVER['REQUEST_URI'].'">
-					<input type="number" name="unidades" id="unidades" min="1" max="'.$row[9].'" value="'.$row[0].'" style="text-align:center;">
+					<input type="number" step="1" name="unidades" id="unidades" min="1" max="'.$row[9].'" value="'.$row[0].'" style="text-align:center;">
 					</div>
 					<div class="col-md-4">
 					<button type="submit" class="btn btn-primary"><i class="zmdi zmdi-upload"></i></button>
@@ -4002,7 +4130,7 @@
 				<div class="col-md-12">
 					<div class="col-md-8">
 					<input type="hidden" id="url" name="url" value="'.$_SERVER['REQUEST_URI'].'">
-					<input type="number" name="unidades" id="unidades" min="1" " value="'.$row[0].'" style="text-align:center;">
+					<input type="number" step="1" name="unidades" id="unidades" min="1" " value="'.$row[0].'" style="text-align:center;">
 					</div>
 					<div class="col-md-4">
 					<button type="submit" class="btn btn-primary"><i class="zmdi zmdi-upload"></i></button>
@@ -4021,7 +4149,7 @@
 		
 		$ivac = '.'.$iva;
 
-		$total_ = number_format($total,2,".",",");
+		$total_ = number_format($total,GetNumberDecimales(),".",",");
 
 		$pagar = $total * ($descuento / 100);
 
@@ -4031,13 +4159,51 @@
 
         $pagarUsd = GetUsdToMXN($pagar);
         
-		$subtotal = number_format(($pagar / 1.160000),2,".",",");
+		$subtotal = number_format(($pagar / 1.160000),GetNumberDecimales(),".",",");
 
-		$iva_ = number_format($pagar - ($pagar / 1.160000),2,".",",");
+		$iva_ = number_format($pagar - ($pagar / 1.160000),GetNumberDecimales(),".",",");
 		
-		$pagar = number_format($pagar,2,".",",");
+		$pagar = number_format($pagar,GetNumberDecimales(),".",",");
 		
-		$pagarUsd = number_format($pagarUsd,2,".",",");
+		$pagarUsd = number_format($pagarUsd,GetNumberDecimales(),".",",");
+
+		$ShowTotalDesc = "";
+
+		if ($total_desc > 0)
+		{
+			$ShowTotalDesc = '
+			<tr class="cart-total">
+				<th>Total</th>
+				<td>$ '.$total_.' MXN</td>
+			</tr>
+			<tr class="cart-shipping">
+				<th> - '.$descuento.' % Desc.</th>
+				<td>$ '.$total_desc.' MXN</td>
+			</tr>';
+		}else
+		{
+			$ShowTotalDesc = '
+			<tr class="cart-shipping">
+				<th>Total</th>
+				<td>$ '.$total_.' MXN</td>
+			</tr>';
+		}
+		
+		$ShowIva = "";
+
+		if (DesglosarReportIva())
+		{
+			$ShowIva = '
+			<tr class="cart-total">
+				<th>Subtotal</th>
+				<td>$ '.$subtotal.' MXN</td>
+			</tr>
+			<tr class="cart-shipping">
+				<th> iva '.$iva.' %</th>
+				<td>$ '.$iva_.' MXN</td>
+			</tr>
+			';
+		}
 
 		$body = $body . '
 			</tbody>
@@ -4057,7 +4223,8 @@
 					</div>
 					<p>CLIENTE: '.$cliente.'</p>
 					<p>VENDEDOR: '.$vendedor.'</p>
-					<p>CREADO: '.$fecha.'</p>                                      
+					<p>CREADO: '.GetFechaText($fecha).'</p>
+					
 				</div>
 			</div> 
 			<div class="col-md-offset-0 col-md-4 col-sm-offset-3 col-sm-6 clearfix">
@@ -4071,30 +4238,11 @@
 						<th>Productos</th>
 						<td>'.$total_productos.' Unidades</td>
 					</tr>
+						'.$ShowTotalDesc.'
+						'.$ShowIva.'
 						<tr class="cart-total">
-							<th>Total</th>
-							<td>$ '.$total_.' MXN</td>
-						</tr>
-						<tr class="cart-shipping">
-							<th> - '.$descuento.' % Desc.</th>
-							<td>$ '.$total_desc.' MXN</td>
-						</tr>
-						<tr class="cart-total">
-							<th>Subtotal</th>
-							<td>$ '.$subtotal.' MXN</td>
-						</tr>
-						<tr class="cart-shipping">
-							<th> iva '.$iva.' %</th>
-							<td>$ '.$iva_.' MXN</td>
-						</tr>
-						<tr class="cart-total">
-							<th>Pagar</th>
-							<td>$ '.$pagar.' MXN</td>
-						</tr>
-						<tr class="cart-total">
-							<th>Pagar</th>
-							<td>$ '.$pagarUsd.' USD</td>
-						</tr>
+							<th><b>Pagar</b></th>
+							<td><b>$ '.$pagar.' MXN</b></td>
 						</tbody>
 					</table> 
 				</div>
@@ -4104,7 +4252,8 @@
 	</div>                            
 	</div>
 	</div>
-	</div>
+
+	</div><br>
 	</div>
 		';
 		return $body;
@@ -4210,7 +4359,7 @@
 		
 		$ivac = '0.'.$iva;
 
-		$total_ = number_format($total,2,".",",");
+		$total_ = number_format($total,GetNumberDecimales(),".",",");
 
 		$pagar = $total * ($descuento / 100);
 
@@ -4218,11 +4367,11 @@
 
 		$pagar = $total - $pagar;
 
-		$subtotal = number_format(($pagar / 1.160000),2,".",",");
+		$subtotal = number_format(($pagar / 1.160000),GetNumberDecimales(),".",",");
 
-		$iva_ = number_format($pagar - ($pagar / 1.160000),2,".",",");
+		$iva_ = number_format($pagar - ($pagar / 1.160000),GetNumberDecimales(),".",",");
 		
-		$pagar = number_format($pagar,2,".",",");
+		$pagar = number_format($pagar,GetNumberDecimales(),".",",");
 
 		$body = $body . '
 			</tbody>
@@ -4441,7 +4590,7 @@
 		
 		$ivac = '0.'.$iva;
 
-		$total_ = number_format($total,2,".",",");
+		$total_ = number_format($total,GetNumberDecimales(),".",",");
 
 		$pagar = $total * ($descuento / 100);
 
@@ -4451,15 +4600,52 @@
 
 		$tt = $pagar - $total_abono;
 
-		$subtotal = number_format(($pagar / 1.160000),2,".",",");
+		$subtotal = number_format(($pagar / 1.160000),GetNumberDecimales(),".",",");
 
-		$iva_ = number_format($pagar - ($pagar / 1.160000),2,".",",");
+		$iva_ = number_format($pagar - ($pagar / 1.160000),GetNumberDecimales(),".",",");
 		
-		$pagar = number_format($pagar,2,".",",");
+		$pagar = number_format($pagar,GetNumberDecimales(),".",",");
 		
-		$tt = number_format($tt,2,".",",");
+		$tt = number_format($tt,GetNumberDecimales(),".",",");
 		
-		
+		$ShowTotalDesc = "";
+
+		if ($total_desc > 0)
+		{
+			$ShowTotalDesc = '
+			<tr class="cart-total">
+				<th>Total</th>
+				<td>$ '.$total_.' MXN</td>
+			</tr>
+			<tr class="cart-shipping">
+				<th> - '.$descuento.' % Desc.</th>
+				<td>$ '.$total_desc.' MXN</td>
+			</tr>';
+		}else
+		{
+			$ShowTotalDesc = '
+			<tr class="cart-shipping">
+				<th>Total</th>
+				<td>$ '.$total_.' MXN</td>
+			</tr>';
+		}
+
+		$ShowIva = "";
+
+		if (DesglosarReportIva())
+		{
+			$ShowIva = '
+			<tr class="cart-total">
+				<th>Subtotal</th>
+				<td>$ '.$subtotal.' MXN</td>
+			</tr>
+			<tr class="cart-shipping">
+				<th> iva '.$iva.' %</th>
+				<td>$ '.$iva_.' MXN</td>
+			</tr>
+			';
+		}
+
 		$body = $body . '
 			</tbody>
 			</table>
@@ -4501,33 +4687,15 @@
 						<th>Productos</th>
 						<td>'.$total_productos.' Unidades</td>
 					</tr>
+						'.$ShowTotalDesc.'
+						'.$ShowIva.'
 						<tr class="cart-total">
-							<th>Total</th>
-							<td>$ '.$total_.' MXN</td>
-						</tr>
-						<tr class="cart-shipping">
-							<th> - '.$descuento.' % Desc.</th>
-							<td>$ '.$total_desc.' MXN</td>
-						</tr>
-						<tr class="cart-total">
-							<th>Subtotal</th>
-							<td>$ '.$subtotal.' MXN</td>
-						</tr>
-						<tr class="cart-shipping">
-							<th> iva '.$iva.' %</th>
-							<td>$ '.$iva_.' MXN</td>
-						</tr>
-						<tr class="cart-total">
-							<th>Total</th>
-							<td>$ '.$pagar.' MXN</td>
-						</tr>
-						<tr class="cart-shipping">
 							<th>Abonos</th>
 							<td>$ '.$total_abono.' MXN</td>
 						</tr>
 						<tr class="cart-total">
-							<th>Adeudo</th>
-							<td>$ '.$tt.' MXN</td>
+							<th><b>Adeudo</b></th>
+							<td><b>$ '.$tt.' MXN</b></td>
 						</tr>
 						</tbody>
 					</table>
@@ -4663,7 +4831,7 @@
 		
 		$ivac = '1.'.$iva;
 
-		$total_ = number_format($total,2,".",",");
+		$total_ = number_format($total,GetNumberDecimales(),".",",");
 
 		$pagar = $total * ($descuento / 100);
 
@@ -4673,13 +4841,13 @@
 
 		$tt = $pagar - $total_abono;
 
-		$subtotal = number_format($pagar / $ivac,2,".",",");
+		$subtotal = number_format($pagar / $ivac,GetNumberDecimales(),".",",");
 
-		$iva_ = number_format($pagar - ($pagar / $ivac),2,".",",");
+		$iva_ = number_format($pagar - ($pagar / $ivac),GetNumberDecimales(),".",",");
 		
-		$pagar = number_format($pagar,2,".",",");
+		$pagar = number_format($pagar,GetNumberDecimales(),".",",");
 		
-		$tt = number_format($tt,2,".",",");
+		$tt = number_format($tt,GetNumberDecimales(),".",",");
 		
 		
 		$body = $body . '
@@ -4931,7 +5099,7 @@
 
 		$ivac = '.'.$iva;
 
-		$total_ = number_format($total,2,".",",");
+		$total_ = number_format($total,GetNumberDecimales(),".",",");
 
 		$pagar = $total * ($descuento / 100);
 
@@ -4941,14 +5109,52 @@
         
         $PagarUsd = GetUsdToMXN($pagar);
         
-		$subtotal = number_format(($pagar / 1.160000),2,".",",");
+		$subtotal = number_format(($pagar / 1.160000),GetNumberDecimales(),".",",");
 
-		$iva_ = number_format($pagar - ($pagar / 1.160000),2,".",",");
+		$iva_ = number_format($pagar - ($pagar / 1.160000),GetNumberDecimales(),".",",");
 		
-		$pagar = number_format($pagar,2,".",",");
+		$pagar = number_format($pagar,GetNumberDecimales(),".",",");
 		
-		$PagarUsd = number_format($PagarUsd,2,".",",");
+		$PagarUsd = number_format($PagarUsd,GetNumberDecimales(),".",",");
 		
+		$ShowTotalDesc = "";
+
+		if ($total_desc > 0)
+		{
+			$ShowTotalDesc = '
+			<tr class="cart-total">
+				<th>Total</th>
+				<td>$ '.$total_.' MXN</td>
+			</tr>
+			<tr class="cart-shipping">
+				<th> - '.$descuento.' % Desc.</th>
+				<td>$ '.$total_desc.' MXN</td>
+			</tr>';
+		}else
+		{
+			$ShowTotalDesc = '
+			<tr class="cart-shipping">
+				<th>Total</th>
+				<td>$ '.$total_.' MXN</td>
+			</tr>';
+		}
+
+		$ShowIva = "";
+
+		if (DesglosarReportIva())
+		{
+			$ShowIva = '
+			<tr class="cart-total">
+				<th>Subtotal</th>
+				<td>$ '.$subtotal.' MXN</td>
+			</tr>
+			<tr class="cart-shipping">
+				<th> iva '.$iva.' %</th>
+				<td>$ '.$iva_.' MXN</td>
+			</tr>
+			';
+		}
+
 		$body = $body . '
 			</tbody>
 			</table>
@@ -4981,29 +5187,11 @@
 								<th>Productos</th>
 								<td>'.$total_productos.' Unidades</td>
 							</tr>
+							'.$ShowTotalDesc.'
+							'.$ShowIva.'
 							<tr class="cart-total">
-								<th>Total</th>
-								<td>$ '.$total_.' MXN</td>
-							</tr>
-							<tr class="cart-shipping">
-								<th> - '.$descuento.' % Desc.</th>
-								<td>$ '.$total_desc.' MXN</td>
-							</tr>
-							<tr class="cart-total">
-								<th>Subtotal</th>
-								<td>$ '.$subtotal.' MXN</td>
-							</tr>
-							<tr class="cart-shipping">
-								<th> iva '.$iva.' %</th>
-								<td>$ '.$iva_.' MXN</td>
-							</tr>
-							<tr class="cart-total">
-								<th>Pagar</th>
-								<td>$ '.$pagar.' MXN</td>
-							</tr>
-							<tr class="cart-total">
-								<th>Pagar</th>
-								<td>$ '.$PagarUsd.' USD</td>
+								<th><b>Pagar</b></th>
+								<td><b>$ '.$pagar.' MXN </b></td>
 							</tr>
 						</tbody>
 					</table> 
@@ -6014,7 +6202,7 @@
                 	<tbody>
                 		<tr>
                 			<td style="text-align: left;">'.$red.'$</font></td>
-                			<td style="text-align: right;">&nbsp;'.$red.number_format($row[3],2,".",",").'</font></td>
+                			<td style="text-align: right;">&nbsp;'.$red.number_format($row[3],GetNumberDecimales(),".",",").'</font></td>
                 		</tr>
                 	</tbody>
                 </table>
@@ -6043,8 +6231,8 @@
 		$body = $body . '
 		</tbody>
 			</table><br>
-			<h4 style="text-align: center;"><strong>INGRESO $ '.number_format($total,2,".",",").' | EGRESO $ '.number_format(7200,2,".",",").'</strong></h4>
-			<h3 style="text-align: center;"><strong>UTILIDAD $ '.number_format($utilidad,2,".",",").' MXN, DE UN TOTAL DE '.$cont.' ITEMS.</strong></h3>
+			<h4 style="text-align: center;"><strong>INGRESO $ '.number_format($total,GetNumberDecimales(),".",",").' | EGRESO $ '.number_format(7200,GetNumberDecimales(),".",",").'</strong></h4>
+			<h3 style="text-align: center;"><strong>UTILIDAD $ '.number_format($utilidad,GetNumberDecimales(),".",",").' MXN, DE UN TOTAL DE '.$cont.' ITEMS.</strong></h3>
 			';
 
 		
@@ -6371,27 +6559,27 @@
 		/*if ($transferencia > 0)
 		{
 			$body = $body . '
-			<h5>Tranferencia: $ '.number_format($transferencia,2,".",",").' MXN</h5>
+			<h5>Tranferencia: $ '.number_format($transferencia,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($cheque > 0)
 		{
 			$body = $body . '
-			<h5>Tarjeta: $ '.number_format($cheque,2,".",",").' MXN</h5>
+			<h5>Tarjeta: $ '.number_format($cheque,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}*/
 		if ($efectivo > 0)
 		{
 			$cajatmp = '
-			<h5>Efectivo: $ '.number_format($efectivo,2,".",",").' MXN</h5>
+			<h5>Efectivo: $ '.number_format($efectivo,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 		$body = '</div>
 		<br>
 		<div align="right">
 			'.$cajatmp.'
-			<h4>TOTAL RECAUDADO: $ '.number_format($efectivo,2,".",",").' MXN</h4>
+			<h4>TOTAL RECAUDADO: $ '.number_format($efectivo,GetNumberDecimales(),".",",").' MXN</h4>
 		</div>
 		' . $body;
 
@@ -6494,7 +6682,11 @@
 				{
 					$deposito = $deposito + $row[5];
 				}
-				
+				elseif ($row[8] == "cheque")
+				{
+					$cheque0 = $cheque0 + $row[5];
+				}
+
 				if ($row[9] == 1)
 				{
 					$folio_ = '<td class="item-des"><a href="sale_finaly_report_order.php?folio='.$row[0].'">'.$row[0].'</a></td>';
@@ -6544,43 +6736,179 @@
         if ($vendedor > 0 && $utilidad > 0)
         {
             $body = $body . '
-			<h5>Utilidad: $ '.number_format( $utilidad,2,".",",").' MXN</h5>
+			<h5>Utilidad: $ '.number_format( $utilidad,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 			
 			$body = $body . '
-			<h5>Comision: '.$porcent_comision.' % $ '.number_format( $utilidad* ($porcent_comision / 100),2,".",",").' MXN</h5>
+			<h5>Comision: '.$porcent_comision.' % $ '.number_format( $utilidad* ($porcent_comision / 100),GetNumberDecimales(),".",",").' MXN</h5>
 			';
         }
 		if ($efectivo > 0)
 		{
 			$body = $body . '
-			<h5>Efectivo: $ '.number_format($efectivo,2,".",",").' MXN</h5>
+			<h5>Efectivo: $ '.number_format($efectivo,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($transferencia > 0)
 		{
 			$body = $body . '
-			<h5>Tranferencia: $ '.number_format($transferencia,2,".",",").' MXN</h5>
+			<h5>Tranferencia: $ '.number_format($transferencia,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($cheque > 0)
 		{
 			$body = $body . '
-			<h5>Tarjeta: $ '.number_format($cheque,2,".",",").' MXN</h5>
+			<h5>Tarjeta: $ '.number_format($cheque,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($deposito > 0)
 		{
 			$body = $body . '
-			<h5>Deposito: $ '.number_format($deposito,2,".",",").' MXN</h5>
+			<h5>Deposito: $ '.number_format($deposito,GetNumberDecimales(),".",",").' MXN</h5>
+			';
+		}
+		if ($cheque0 > 0)
+		{
+			$body .= '
+			<h5>Cheques: $ '.number_format($cheque0,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 		
 		$body = $body . '
-			<h4>TOTAL RECAUDADO: $ '.number_format($total,2,".",",").' MXN</h4>
+			<h4>TOTAL RECAUDADO: $ '.number_format($total,GetNumberDecimales(),".",",").' MXN</h4>
+		</div>
+		';
+
+		return $body;
+	}
+
+	function table_credits($client, $sucursal)
+	{
+		if ($client > 0)
+		{
+			if ($sucursal > 0)
+			{
+				$data = mysqli_query(db_conectar(),"SELECT c.id, cc.nombre, c.f_registro, INTERVAL c.dias_credit DAY + c.f_registro as f_vencimiento, c.factura, c.adeudo, c.abono, (c.adeudo - c.abono) as pd_pago, c.dias_credit, s.nombre FROM credits c, clients cc, sucursales s WHERE c.client = cc.id and c.sucursal = s.id  and c.client =  '$client' and c.sucursal = '$sucursal' ORDER by f_vencimiento asc");
+			}else
+			{
+				$data = mysqli_query(db_conectar(),"SELECT c.id, cc.nombre, c.f_registro, INTERVAL c.dias_credit DAY + c.f_registro as f_vencimiento, c.factura, c.adeudo, c.abono, (c.adeudo - c.abono) as pd_pago, c.dias_credit, s.nombre FROM credits c, clients cc, sucursales s WHERE c.client = cc.id and c.sucursal = s.id  and c.client =  '$client' ORDER by pd_pago desc");
+			}
+		}else{
+			if ($sucursal > 0)
+			{
+				$data = mysqli_query(db_conectar(),"SELECT c.id, cc.nombre, c.f_registro, INTERVAL c.dias_credit DAY + c.f_registro as f_vencimiento, c.factura, c.adeudo, c.abono, (c.adeudo - c.abono) as pd_pago, c.dias_credit, s.nombre FROM credits c, clients cc, sucursales s WHERE c.client = cc.id and c.sucursal = s.id and c.pay = 0 and c.sucursal = '$sucursal' ORDER by f_vencimiento asc");
+			}else
+			{
+				$data = mysqli_query(db_conectar(),"SELECT c.id, cc.nombre, c.f_registro, INTERVAL c.dias_credit DAY + c.f_registro as f_vencimiento, c.factura, c.adeudo, c.abono, (c.adeudo - c.abono) as pd_pago, c.dias_credit, s.nombre FROM credits c, clients cc, sucursales s WHERE c.client = cc.id and c.sucursal = s.id and c.pay = 0 ORDER by f_vencimiento asc");
+			}
+		}
+		
+		$body = '
+		
+		<div class="table-responsive compare-wraper mt-30">
+		</div>
+		
+			<div class="col-md-6">
+				<br><label>Seleccione cliente</label><br>
+				<select id="select_client" name="select_client" onchange="loadclient()">
+						'.Select_clients($client).'
+				</select> 
+			</div>
+
+			<div class="col-md-6">
+				<br><label>Seleccione sucursal</label>
+				<select id="select_sucursal" name="select_sucursal" onchange="loadclient()">
+						'.Select_sucursales_selected($sucursal).'
+				</select>
+			</div>
+
+			<br>
+
+				<table class="cart table">
+					<thead>
+						<tr>
+							<th class="table-head th-name uppercase">NOMBRE</th>
+							<th class="table-head th-name uppercase">F. VENCIMIENTO</th>
+							<th class="table-head th-name uppercase">FACTURA</th>
+							<th class="table-head th-name uppercase">PENDIENTE</th>
+							<th class="table-head th-name uppercase">DETALLES</th>
+							<th class="table-head th-name uppercase">LIQUIDAR</th>
+							<th class="table-head th-name uppercase">ELIMINAR</th>
+						</tr>
+					</thead>
+					<tbody>';
+		
+		$con = db_conectar();  
+		
+		while($row = mysqli_fetch_array($data))
+	    {
+			$font = "";
+			
+			$fecha_actual = strtotime(date("d-m-Y H:i:00",time()));
+            $fecha_db = strtotime($row[3]);
+            
+		    if($fecha_actual > $fecha_db)
+        	{
+        	    $font = 'style="color: red;"';
+			}
+			
+			if ($row[7] <= 0)
+			{
+				$font = 'style="color: blue;"';
+			}
+
+			$body = $body.'
+				<tr>
+				<td class="item-des" '.$font.' >'.$row[1].'</td>
+				<td class="item-des" '.$font.' >'.GetFechaText($row[3]).'</td>
+				<td class="item-des" '.$font.' >'.$row[4].'</td>
+				<td class="item-des" '.$font.' >$ '.number_format($row[7],GetNumberDecimales(),".",",").' MXN</td>
+				<td><center><a class="button extra-small button-black mb-20" data-toggle="modal" data-target="#details'.$row[0].'" ><i class="zmdi zmdi-eye zmdi-hc-lg"></i></a></center></td>
+				<td><center><a class="button extra-small button-black mb-20" data-toggle="modal" data-target="#liquid'.$row[0].'" ><i class="zmdi zmdi-check zmdi-hc-lg"></i></a></center></td>
+				<td><center><a class="button extra-small button-black mb-20" data-toggle="modal" data-target="#delete'.$row[0].'" ><i class="zmdi zmdi-close zmdi-hc-lg"></i></a></center></td>
+				</tr>
+				';
+			$total = $total + $row[7];
+		}
+		$body = $body . '
+		</tbody>
+			</table>
+		</div>
+		<br>
+		<div align="right">
+		';
+		
+		$body = $body . '
+			<h4>TOTAL POR COBRAR: $ '.number_format($total,GetNumberDecimales(),".",",").' MXN</h4>
+			
+			<a href="report_xls_credits.php?client='.$client.'&sucursal='.$sucursal.'"style="
+            background-color: #58ACFA;
+            border: none;
+            color: white;
+            padding: 18px 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 20px;
+            margin: 4px 2px;
+            cursor: pointer;
+			">GENERAR REPORTE XLS</a>
+			
+			<a href="report_pdf_credits.php?client='.$client.'&sucursal='.$sucursal.'"style="
+            background-color: #58ACFA;
+            border: none;
+            color: white;
+            padding: 18px 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 20px;
+            margin: 4px 2px;
+            cursor: pointer;
+            ">GENERAR REPORTE PDF</a>
 		</div>
 		';
 
@@ -6591,22 +6919,23 @@
 	{
 		$total = 0;
 
-		
+		$inicio .= ' 00:00:00';
+    	$finaliza .= ' 23:59:59';
 		if ($vendedor > 0 && $sucursal == 0)
 		{
-			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido, f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.vendedor = '$vendedor' and f.client = '$client'  order by f.fecha_venta desc ");
+			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido, f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.vendedor = '$vendedor' and f.client = '$client'  and f.fecha_venta >= '$inicio' and f.fecha_venta <= '$finaliza' order by f.fecha_venta desc");
 		}
 		elseif ($vendedor == 0 && $sucursal > 0)
 		{
-			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido , f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.sucursal = '$sucursal' and f.client = '$client' order by f.fecha_venta desc ");
+			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido , f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.sucursal = '$sucursal' and f.client = '$client' and f.fecha_venta >= '$inicio' and f.fecha_venta <= '$finaliza' order by f.fecha_venta desc ");
 		}
 		elseif ($vendedor > 0 && $sucursal > 0)
 		{
-			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido, f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.sucursal = '$sucursal' and f.vendedor = '$vendedor' and f.client = '$client' order by f.fecha_venta desc  ");
+			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido, f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.sucursal = '$sucursal' and f.vendedor = '$vendedor' and f.client = '$client' and f.fecha_venta >= '$inicio' and f.fecha_venta <= '$finaliza' order by f.fecha_venta desc");
 		}
 		else
 		{
-			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido, f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.client = '$client'  order by f.fecha_venta desc ");
+			$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.cobrado, f.fecha_venta, s.nombre, f.t_pago, f.pedido, f.concepto FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.client = '$client' and f.fecha_venta >= '$inicio' and f.fecha_venta <= '$finaliza' order by f.fecha_venta desc ");
 		}
 		
 		$body = '
@@ -6647,6 +6976,10 @@
 				{
 					$deposito = $deposito + $row[5];
 				}
+				elseif ($row[8] == "cheque")
+				{
+					$cheque = $cheque + $row[5];
+				}
 				
 				if ($row[9] == 1)
 				{
@@ -6668,7 +7001,7 @@
 				<td class="item-des"><p>'.$row[1].'</p></td>
 				<td class="item-des"><p>'.$row[2].'</p></td>
 				<td class="item-des"><p>'.$row[7].'</p></td>
-				<td class="item-des"><p>'.$row[6].'</p></td>
+				<td class="item-des"><p>'.GetFechaText($row[6]).'</p></td>
 				<td class="item-des"><center><p>$ '.$row[5].' MXN</p></center></td>
 				<td class="item-des uppercase"><center><p>'.$row[8].'</p></center></td>
 				<td class="item-des uppercase"><center>
@@ -6693,26 +7026,31 @@
 		if ($efectivo > 0)
 		{
 			$body = $body . '
-			<h5>Efectivo: $ '.number_format($efectivo,2,".",",").' MXN</h5>
+			<h5>Efectivo: $ '.number_format($efectivo,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($transferencia > 0)
 		{
 			$body = $body . '
-			<h5>Tranferencia: $ '.number_format($transferencia,2,".",",").' MXN</h5>
+			<h5>Tranferencia: $ '.number_format($transferencia,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($deposito > 0)
 		{
 			$body = $body . '
-			<h5>Depositos: $ '.number_format($deposito,2,".",",").' MXN</h5>
+			<h5>Depositos: $ '.number_format($deposito,GetNumberDecimales(),".",",").' MXN</h5>
 			';
+		}
+		if ($cheque > 0)
+		{
+			$body = $body . '
+			<h5>Cheques: $ '.number_format($cheque,GetNumberDecimales(),".",",").' MXN</h5>';
 		}
 		
 		$body = $body . '
-			<h4>TOTAL RECAUDADO: $ '.number_format($total,2,".",",").' MXN</h4>
+			<h4>TOTAL RECAUDADO: $ '.number_format($total,GetNumberDecimales(),".",",").' MXN</h4>
 		</div>
 		';
 
@@ -6814,26 +7152,26 @@
 		if ($efectivo > 0)
 		{
 			$body = $body . '
-			<h5>Efectivo: $ '.number_format($efectivo,2,".",",").' MXN</h5>
+			<h5>Efectivo: $ '.number_format($efectivo,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($transferencia > 0)
 		{
 			$body = $body . '
-			<h5>Tranferencia: $ '.number_format($transferencia,2,".",",").' MXN</h5>
+			<h5>Tranferencia: $ '.number_format($transferencia,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($cheque > 0)
 		{
 			$body = $body . '
-			<h5>Tarjeta: $ '.number_format($cheque,2,".",",").' MXN</h5>
+			<h5>Tarjeta: $ '.number_format($cheque,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 		
 		$body = $body . '
-			<h4>TOTAL RECAUDADO: $ '.number_format($total,2,".",",").' MXN</h4>
+			<h4>TOTAL RECAUDADO: $ '.number_format($total,GetNumberDecimales(),".",",").' MXN</h4>
 		</div>
 		';
 
@@ -6931,26 +7269,26 @@
 		if ($efectivo > 0)
 		{
 			$body = $body . '
-			<h5>Efectivo: $ '.number_format($efectivo,2,".",",").' MXN</h5>
+			<h5>Efectivo: $ '.number_format($efectivo,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($transferencia > 0)
 		{
 			$body = $body . '
-			<h5>Tranferencia: $ '.number_format($transferencia,2,".",",").' MXN</h5>
+			<h5>Tranferencia: $ '.number_format($transferencia,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 
 		if ($cheque > 0)
 		{
 			$body = $body . '
-			<h5>Tarjeta: $ '.number_format($cheque,2,".",",").' MXN</h5>
+			<h5>Tarjeta: $ '.number_format($cheque,GetNumberDecimales(),".",",").' MXN</h5>
 			';
 		}
 		
 		$body = $body . '
-			<h4>TOTAL RECAUDADO: $ '.number_format($total,2,".",",").' MXN</h4>
+			<h4>TOTAL RECAUDADO: $ '.number_format($total,GetNumberDecimales(),".",",").' MXN</h4>
 		</div>
 		';
 
@@ -9007,7 +9345,7 @@
 
 	function UpdateSaleVTD ($folio)
 	{
-		$data = mysqli_query(db_conectar(),"SELECT folio, descuento, iva, client, t_pago FROM `folio_venta` WHERE folio = $folio ");
+		$data = mysqli_query(db_conectar(),"SELECT folio, descuento, iva, client, t_pago, fecha FROM `folio_venta` WHERE folio = $folio ");
 		
 		$select_con = mysqli_query(db_conectar(),"SELECT id, nombre FROM clients ORDER by nombre asc");
 		$select = "<option value='0'>CLIENTE</option>";
@@ -9021,6 +9359,8 @@
 		$body = "";
 		while($row = mysqli_fetch_array($data))
 	    {
+			$date = date_create($row[5]);
+
 			$body = $body.'
 			<form action="func/product_sale_update_descuento.php" method="post">
             <input type="hidden" id="folio" name="folio" value="'.$row[0].'">
@@ -9102,15 +9442,12 @@
             <div class="col-md-12">
             
             <div class="col-md-3">
-                <p></p>
             </div>
             
-            <div class="col-md-3">
-            </div>
+			<div class="col-md-9">
+	
+			</div>
             
-            <div class="col-md-3">
-            </div>
-
             <div class="col-md-3">
                 
             </div>
@@ -9285,7 +9622,7 @@
 							<div class="col-md-12">
 								<br>
 								<label>CABECERA</label>
-								<input type="text" name="header" id="header" placeholder="..."  value="Corporativo Amaval">
+								<input type="text" name="header" id="header" placeholder="..."  value="'.static_empresa_nombre().'">
 							</div>
 							
 							<input id="body" name="body" type="hidden" value="APRECIABLE <b>'.$row[2].'</b>. SE ADJUNTA <b>COTIZACION VIGENTE </b>%cot_cot%">
@@ -9313,9 +9650,17 @@
 		return $body;
 	}
 
-	function sales_delete_finance ()
+	function sales_delete_finance ($inicio, $finaliza, $folio, $vendedor, $sucursal)
 	{
-		$data = mysqli_query(db_conectar(),"SELECT v.folio, u.nombre, c.nombre, v.descuento, v.fecha, v.fecha_venta, v.t_pago, v.cobrado, c.correo FROM folio_venta v, users u, clients c, sucursales s where v.vendedor = u.id and v.client = c.id and v.sucursal = s.id and v.open = 0");
+		//$inicio = '2018-07-18 00:00:00';
+		//$finaliza = '2018-07-18 23:59:59';
+		$inicio .= ' 00:00:00';
+		$finaliza .= ' 23:59:59';
+		$total = 0;
+        $porcent_comision = 0;
+		
+		$data = mysqli_query(db_conectar(),"SELECT f.folio, v.nombre, c.nombre, f.descuento, f.fecha, f.fecha_venta, f.t_pago, f.cobrado, c.correo FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.fecha_venta >= '$inicio' and f.fecha_venta <= '$finaliza'  order by f.fecha_venta desc ");
+		
 		
 		$body = "";
 		while($row = mysqli_fetch_array($data))
@@ -9385,22 +9730,22 @@
 					
 					<div class="row">
     					<div class="col-md-6">
-    						<p><b>F. COTIZACION:</b> '.GetFechaText($row[4]).'</p>
+    						<p><b>FECHA REGISTRO:</b><br> '.GetFechaText($row[4]).'</p>
     					</div>
     					<div class="col-md-6">
-    						<p><b>F. COMPRA:</b> '.GetFechaText($row[5]).'</p>
+    						<p><b>FECHA REMISION:</b><br> '.GetFechaText($row[5]).'</p>
     					</div>
 					</div>
 					
 					<div class="row">
     					<div class="col-md-4">
-    						<p><b>COBRADO:</b> $ '.$row[7].' MXN</p>
+    						<p><b>COBRADO:</b><br> $ '.$row[7].' MXN</p>
     					</div>
     					<div class="col-md-4">
-    						<p><b>T. PAGO:</b> '.strtoupper($row[6]).'</p>
+    						<p><b>T. PAGO:</b><br> '.strtoupper($row[6]).'</p>
     					</div>
     					<div class="col-md-4">
-    						<p><b>DESCUENTO:</b> '.($row[3] / 10).' %</p>
+    						<p><b>DESCUENTO:</b><br> '.($row[3] / 10).' %</p>
     					</div>
 					</div>
 					
@@ -9435,7 +9780,7 @@
 							<div class="col-md-12">
 								<br>
 								<label>CABECERA</label>
-								<input type="text" name="header" id="header" placeholder="..."  value="Corporativo Amaval" required>
+								<input type="text" name="header" id="header" placeholder="..."  value="'.static_empresa_nombre().'" required>
 							</div>
 							
 							<input id="body" name="body" type="hidden" value="APRECIABLE <b>'.$row[2].'</b>. SE ADJUNTA <b>LICENCIA</b> Y ENLACE DE <b>DESCARGA</b>">
@@ -9457,6 +9802,227 @@
 				</div>
 			</div>
 			</div>
+			';
+		}
+		
+		return $body;
+	}
+
+	function sales_delete_finance_clients ($inicio, $finaliza, $vendedor, $sucursal, $client)
+	{
+		$inicio .= ' 00:00:00';
+		$finaliza .= ' 23:59:59';
+		$total = 0;
+        $porcent_comision = 0;
+        
+		$inicio .= ' 00:00:00';
+    	$finaliza .= ' 23:59:59';
+		if ($vendedor > 0 && $sucursal == 0)
+		{
+			$data = mysqli_query(db_conectar(),"SELECT f.folio FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.vendedor = '$vendedor' and f.client = '$client'  and f.fecha >= '$inicio' and f.fecha <= '$finaliza' order by f.fecha desc");                                                  
+		}
+		elseif ($vendedor == 0 && $sucursal > 0)
+		{
+			$data = mysqli_query(db_conectar(),"SELECT f.folio FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.sucursal = '$sucursal' and f.client = '$client' and f.fecha >= '$inicio' and f.fecha <= '$finaliza' order by f.fecha desc ");
+		}
+		elseif ($vendedor > 0 && $sucursal > 0)
+		{
+			$data = mysqli_query(db_conectar(),"SELECT f.folio FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.sucursal = '$sucursal' and f.vendedor = '$vendedor' and f.client = '$client' and f.fecha >= '$inicio' and f.fecha <= '$finaliza' order by f.fecha desc");
+		}
+		else
+		{
+			$data = mysqli_query(db_conectar(),"SELECT f.folio FROM folio_venta f, clients c, users v, sucursales s  WHERE f.vendedor = v.id and f.client = c.id and f.open = 0 and f.sucursal = s.id and f.client = '$client' and f.fecha >= '$inicio' and f.fecha <= '$finaliza' order by f.fecha desc ");
+		}
+		
+		
+		
+		$body = "";
+		while($row = mysqli_fetch_array($data))
+	    {
+			
+			if ($_SESSION['super_pedidos'] == 1)
+			{
+				$eliminar = '
+				<button type="button" class="btn btn-success" data-dismiss="modal">NO</button>
+				<button type="sumbit" class="btn btn-danger">Si eliminar</button>';
+			}else
+			{
+				$eliminar = '<button type="button" class="btn btn-success" data-dismiss="modal">NO</button>';
+			}
+			
+
+			$body = $body.'
+			<div class="modal fade" id="delete'.$row[0].'" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+			<div class="modal-dialog" role="document">
+				<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="exampleModalLabel">Elimnar registro</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="row">
+				
+					<div class="col-md-12">
+						<p>Tome en cuenta que al eliminar el registro, el folio sera elimnado de la base de datos y no existira mas, al igual que los productos asociados seran afectados.</p>
+					</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					
+					<form action="func/delete_f_venta.php" autocomplete="off" method="post">
+						<input type="hidden" id="folio" name="folio" value="'.$row[0].'">
+						<input type="hidden" id="url" name="url" value="'.$_SERVER['REQUEST_URI'].'">
+						'.$eliminar.'
+					</form>
+					
+				</div>
+				</div>
+			</div>
+			</div>';
+		}
+		
+		return $body;
+	}
+
+	function sales_delete_credits ()
+	{
+		$data = mysqli_query(db_conectar(),"SELECT c.id, cc.nombre, c.f_registro, INTERVAL c.dias_credit DAY + c.f_registro as f_vencimiento, c.factura, c.adeudo, c.abono, (c.adeudo - c.abono) as pd_pago, c.dias_credit, s.nombre FROM credits c, clients cc, sucursales s WHERE c.client = cc.id and c.sucursal = s.id ORDER by f_vencimiento asc");
+		
+		$body = "";
+		while($row = mysqli_fetch_array($data))
+	    {
+			
+			if ($_SESSION['super_pedidos'] == 1)
+			{
+				$eliminar = '
+				<button type="button" class="btn btn-success" data-dismiss="modal">NO</button>
+				<button type="sumbit" class="btn btn-danger">Si eliminar</button>';
+			}else
+			{
+				$eliminar = '<button type="button" class="btn btn-success" data-dismiss="modal">NO</button>';
+			}
+			
+
+			$body = $body.'
+			<div class="modal fade" id="delete'.$row[0].'" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+			<div class="modal-dialog" role="document">
+				<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="exampleModalLabel">Elimnar registro</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="row">
+				
+					<div class="col-md-12">
+						<p>Tome en cuenta que al eliminar el registro, el folio sera elimnado de la base de datos y no existira mas.</p>
+					</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<form action="func/delete_credit.php" autocomplete="off" method="post">
+						<input type="hidden" id="id" name="id" value="'.$row[0].'">
+						<input type="hidden" id="url" name="url" value="'.$_SERVER['REQUEST_URI'].'">
+						'.$eliminar.'
+					</form>
+					
+				</div>
+				</div>
+			</div>
+			</div>
+			
+			<!-- Detalles -->
+			<div class="modal fade" id="details'.$row[0].'" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+			<div class="modal-dialog" role="document">
+				<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="exampleModalLabel">INFORMACION CREDITICIA # '.$row[0].'</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="row">
+    					<div class="col-md-6">
+    						<p><b>CLIENTE:</b><br> '.$row[1].'</p>
+						</div>
+
+						<div class="col-md-6">
+    						<p><b>FACTURA:</b><br> '.$row[4].'</p>
+    					</div>
+					</div>
+
+					<div class="row">
+    					<div class="col-md-12">
+    						<p><b>SUCURSAL:</b><br> '.$row[9].'</p>
+						</div>
+					</div>
+					
+					<div class="row">
+    					<div class="col-md-4">
+    						<p><b>FECHA REGISTRO:</b><br> '.GetFechaText($row[2]).'</p>
+    					</div>
+    					<div class="col-md-4">
+    						<p><b>FECHA VENCIMIENTO:</b><br> '.GetFechaText($row[3]).'</p>
+						</div>
+						<div class="col-md-4">
+    						<p><b>DIAS DE CREDITO:</b><br> '.$row[8].' DIAS</p>
+    					</div>
+					</div>
+					
+					<div class="row">
+    					<div class="col-md-4">
+    						<p><b>TOTAL:</b><br> $ '.number_format($row[5],GetNumberDecimales(),".",",").' MXN</p>
+    					</div>
+    					<div class="col-md-4">
+    						<p><b>ABONO:</b><br>$ '.number_format($row[6],GetNumberDecimales(),".",",").' MXN</p>
+    					</div>
+    					<div class="col-md-4">
+    						<p><b>PENDIENTE PAGO:</b><br> '.number_format($row[7],GetNumberDecimales(),".",",").' MXN</p>
+    					</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-info" data-dismiss="modal">OK</button>
+				</div>
+				</div>
+			</div>
+			</div>
+
+			<div class="modal fade" id="liquid'.$row[0].'" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+			<div class="modal-dialog" role="document">
+				<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="exampleModalLabel">ADEUDO TOTAL: $ '.number_format($row[7],GetNumberDecimales(),".",",").' MXN</h5>
+				</div>
+				<div class="modal-body">
+					<div class="row">
+					
+					<form action="func/update_abono_credit.php" autocomplete="off" method="post">
+						<div class="col-md-12">
+							<br>
+							<label>Ingrese abono</label>
+							<input type="number" step="1"  name="abono" id="abono" placeholder="0.0" value= "'.$row[7].'" max= "'.$row[7].'" required >
+						</div>
+						
+						</div>
+				</div>
+				<div class="modal-footer">
+						<input type="hidden" id="id" name="id" value="'.$row[0].'">
+						<input type="hidden" id="url" name="url" value="'.$_SERVER['REQUEST_URI'].'">
+						<button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+						<button type="sumbit" class="btn btn-success">ABONAR</button>;
+					</form>
+					
+				</div>
+				</div>
+			</div>
+			</div>
+
 			';
 		}
 		
@@ -9818,7 +10384,7 @@
 							<div class="col-md-12">
 								<br>
 								<label>ASUNTO</label>
-								<input type="text" name="asunto" id="asunto" placeholder="..."  value="Corporativo Amaval">
+								<input type="text" name="asunto" id="asunto" placeholder="..."  value="'.static_empresa_nombre().'">
 							</div>
 							<div class="col-md-12">
 							<br>
@@ -10005,7 +10571,7 @@
 							<div class="col-md-12">
 								<br>
 								<label>ASUNTO</label>
-								<input type="text" name="asunto" id="asunto" placeholder="..."  value="Corporativo Amaval">
+								<input type="text" name="asunto" id="asunto" placeholder="..."  value="'.static_empresa_nombre().'">
 							</div>
 							<div class="col-md-12">
 							<br>
@@ -10759,6 +11325,8 @@
 			<td class="item-des">
 			
 			<div class="col-md-12">
+			<a class="button extra-small button-black mb-20" data-toggle="modal" data-target="#modalsucursal_v_almacenes'.$row[0].'" ><span> V. Almacenes</span> </a>
+			<a class="button extra-small button-black mb-20" data-toggle="modal" data-target="#modalsucursal_a_almacen'.$row[0].'" ><span> A. Almacen</span> </a>
 			<a class="button extra-small button-black mb-20" data-toggle="modal" data-target="#modalsucursal_edit'.$row[0].'" ><span> Editar</span> </a>
 			<a class="button extra-small button-black mb-20" data-toggle="modal" data-target="#modalalsucursal_delete'.$row[0].'" ><span> Eliminar</span> </a>
 			</div>
@@ -10860,6 +11428,8 @@
 	{
 		$data = mysqli_query(db_conectar(),"SELECT * FROM `sucursales` ORDER by nombre asc");
 		
+		$select_almacen = Select_Almacen();
+
 		$body = "";
 		while($row = mysqli_fetch_array($data))
 	    {
@@ -10935,6 +11505,52 @@
 				<div class="modal-footer">
 					<button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
 					<button type="submit" class="btn btn-primary">Eliminar</button>
+					</form>
+				</div>
+				</div>
+			</div>
+			</div>
+
+
+			<!-- Agregar almacen -->
+			<div class="modal fade" id="modalsucursal_a_almacen'.$row[0].'" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered" role="document">
+				<div class="modal-content">
+				<div class="modal-body">
+					<form action="../func/sucursal_add_almacen.php" autocomplete="off" method="post">
+					<div class="row">
+						
+						<input type="hidden" name="id" id="id" value="'.$row[0].'">
+						<input type="hidden" id="url" name="url" value="'.$_SERVER['REQUEST_URI'].'">
+
+						<div class="col-md-12">
+						
+						<label> Seleccione Almacen <span class="required">*</span></label>
+						<select id="almacen" name="almacen">
+							'.$select_almacen.'
+						</select>                                       
+					
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+					<button type="submit" class="btn btn-primary" onclick="javascript:this.form.submit(); this.disabled= true;" >Agregar</button>
+					</form>
+				</div>
+				</div>
+			</div>
+			</div>
+
+			<!-- ver almacenes -->
+			<div class="modal fade" id="modalsucursal_v_almacenes'.$row[0].'" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered" role="document">
+				<div class="modal-content">
+				<div class="modal-body">
+				'.GetAlmacen($row[0]).'
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
 					</form>
 				</div>
 				</div>
@@ -11497,6 +12113,7 @@
 		<option value="transferencia">Tranferencia</option>
 		<option value="tarjeta">Tarjeta</option>
 		<option value="deposito">Deposito</option>
+		<option value="cheque">Cheque</option>
 		<option value="oxxo">Oxxo</option>
 		';
 	}
@@ -11515,7 +12132,7 @@
 	        $correo = $row[1];
 	    }
 	    
-	    $correo .= ',zhero49@hotmail.com';
+	    $correo .= ','.$static_empresa_email().'';
 	
 	    $correo = str_replace("", ",,", $correo);
 	    
@@ -11689,8 +12306,8 @@
         
         $mail->Username = "documentos@cyberchoapas.com";
         $mail->Password = "8b19e87ff57efaace42006fb1d6ba6c8";
-        $mail->setFrom('contacto@cyberchoapas.com', 'Corporativo Amaval');
-        $mail->AddReplyTo('zhero49@hotmail.com', 'Corporativo Amaval');
+        $mail->setFrom('contacto@cyberchoapas.com', static_empresa_nombre() );
+        $mail->AddReplyTo(static_empresa_email(), static_empresa_nombre() );
         
         //Email receptor
         $ArrMail = explode(",",$correo);
@@ -11758,9 +12375,9 @@
     
         $iva_ = $total_pagar - $subtotal;
     
-        $subtotal = number_format($subtotal,2,".",",");
-        //$total_pagar = number_format($total_pagar,2,".",",");
-        $iva_ = number_format($iva_,2,".",",");
+        $subtotal = number_format($subtotal,GetNumberDecimales(),".",",");
+        //$total_pagar = number_format($total_pagar,GetNumberDecimales(),".",",");
+        $iva_ = number_format($iva_,GetNumberDecimales(),".",",");
         
         return $total_pagar;
 	}
@@ -11805,7 +12422,7 @@
       $minuto = date('i', strtotime($time));
       $segundo = date('s', strtotime($time));
       
-      return strtoupper($nombredia)." ".$numeroDia."/".strtoupper($nombreMes)."/".$anio .' '. $hora .':'. $minuto .':'. $segundo;
+      return strtoupper($nombredia)." ".$numeroDia."-".strtoupper($nombreMes)."-".$anio .' '. $hora .':'. $minuto .':'. $segundo;
     }
     
     function MailConfig ()
@@ -11825,9 +12442,9 @@
         
         $mail->Username = "documentos@cyberchoapas.com";
         $mail->Password = "8b19e87ff57efaace42006fb1d6ba6c8";
-        $mail->setFrom('contacto@cyberchoapas.com', 'Corporativo Amaval');
-        $mail->AddReplyTo('zhero49@hotmail.com', 'Corporativo Amaval');
-        return $mail;
+        $mail->setFrom('contacto@cyberchoapas.com', static_empresa_nombre() );
+		$mail->AddReplyTo(static_empresa_email(), static_empresa_nombre() );
+		return $mail;
     }
     
     function GetUsd ()
@@ -11903,7 +12520,7 @@
 		while($row = mysqli_fetch_array($data))
 		{
 			$body .='
-			<option value="'.$row[0].'">'.'['.$row[0].'] '.$row[1].' ($ '.number_format($row[2],2,".",",").' MXN)</option>
+			<option value="'.$row[0].'">'.'['.$row[0].'] '.$row[1].' ($ '.number_format($row[2],GetNumberDecimales(),".",",").' MXN)</option>
 			';
 		}
 
@@ -11921,7 +12538,7 @@
 	
 	function SendMailPayOxxo ($mail, $referencia)
 	{
-	    $correo = $mail.',zhero49@hotmail.com';
+	    $correo = $mail.','.$static_empresa_email().'';
 		$correo = str_replace("", ",,", $correo);
 	    
 	    
@@ -12072,8 +12689,8 @@
         
         $mail->Username = "documentos@cyberchoapas.com";
         $mail->Password = "8b19e87ff57efaace42006fb1d6ba6c8";
-        $mail->setFrom('contacto@cyberchoapas.com', 'Corporativo Amaval');
-        $mail->AddReplyTo('zhero49@hotmail.com', 'Corporativo Amaval');
+        $mail->setFrom('contacto@cyberchoapas.com', static_empresa_nombre() );
+        $mail->AddReplyTo(static_empresa_email(), static_empresa_nombre() );
         
         //Email receptor
         $ArrMail = explode(",",$correo);
