@@ -28,17 +28,17 @@
 	
 	function ColorBarrReport ()
 	{
-		return "#45916b ";
+		return "#d88b53 ";
 	}
 
 	function DesglosarReportIva ()
 	{
-		return true;
+		return false;
 	}
 
 	function Ticket ()
 	{
-		return false;
+		return true;
 	}
 
 	function ReportCotTranfers ()
@@ -218,7 +218,7 @@
 
 	function ReturnImgLogo ()
 	{
-		return 'images/logolola.jpg';
+		return 'images/corporativo3.jpg';
 	}
 	
 	function db_sessionValidarYES ()
